@@ -3,11 +3,9 @@
 
 MPU6050 mpu;
 
-// Estimated current angle around a given axis
-float angleAroundXAxis, angleAroundYAxis, angleAroundZAxis;
+// Estimated current angle around the X axis
+float angleAroundXAxis;
 
-// Truth samples read from the MPU
-int16_t rotationalVelocityAroundXAxis, rotationalVelocityAroundYAxis, rotationalVelocityAroundZAxis;
 // Acceleration of the MPU in direction of the given axis
 int16_t accelerationAlongXAxis, accelerationAlongYAxis, accelerationAlongZAxis;
 
@@ -31,31 +29,18 @@ void setup() {
 }
 
 void loop() {
-  // Rotational velocity around axis
-  mpu.getRotation(&rotationalVelocityAroundXAxis, &rotationalVelocityAroundYAxis, &rotationalVelocityAroundZAxis);
+  // Rotational velocity around X axis, divide by 131 to account for FS_SEL = 0 to convert from rotational units to degrees/sec
+  float rotationalVelocityAroundXAxis = mpu.getRotationX() / 131.0; // Units: Degrees/Sec
 
-  // Add change in position to overall position, pos += velocity * change in time
-  // Divide by 131 to get degrees/sec from rotational units from mpu
-  angleAroundXAxis += rotationalVelocityAroundXAxis / 131.0 * dt;
-  angleAroundYAxis += rotationalVelocityAroundYAxis / 131.0 * dt;
-  angleAroundZAxis += rotationalVelocityAroundZAxis / 131.0 * dt;
-  
-  // Accelerations along an axis, raw accelerometer Units, to convert to Gs, divide by 16384
-  // seems to be, how vertical are these axis, closer to vertical, closer to 16384
-  // this makes sense, as if you divide by 16384 to get Gs, it would be 1G, which is straight down
+  // Get acceleration along the X, Y, and Z axis. These are given in accelerometer units.
   mpu.getAcceleration(&accelerationAlongXAxis, &accelerationAlongYAxis, &accelerationAlongZAxis);
-
-  // Convert to float to allow for values to fit in more than 16 bits
-  float temp_accelerationAlongXAxis = accelerationAlongXAxis;
-  float temp_accelerationAlongYAxis = accelerationAlongYAxis;
-  float temp_accelerationAlongZAxis = accelerationAlongZAxis;
 
   // Determine 'angle of gravity' using acceleration values along Y and Z axis
   // Use this in tandem with the read rotation to determine best guess rotation value
-  float angleOfGravityFromZAxis = atan2(temp_accelerationAlongYAxis, temp_accelerationAlongZAxis) * (180.0 / PI); // Angle of Gravity WRT Y anx Z axis
+  float angleOfGravityFromZAxis = atan2(accelerationAlongYAxis, accelerationAlongZAxis) * (180.0 / PI); // Angle of Gravity WRT Y anx Z axis
 
-  // To determine the actual final angle, 
-  angleAroundXAxis += weight_factor * (angleOfGravityFromZAxis - angleAroundXAxis);
+  // To determine the actual final angle, use simplified complimentary filter
+  angleAroundXAxis = (1 - weight_factor) * (angleAroundXAxis + rotationalVelocityAroundXAxis * dt) + (weight_factor * angleOfGravityFromZAxis);
   
   Serial.println("angleAroundXAxis: " + String(angleAroundXAxis));
 
