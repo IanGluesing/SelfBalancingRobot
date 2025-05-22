@@ -33,9 +33,6 @@ void setup() {
 
   // Spawn task to get gyro data
   xTaskCreate(gyro_data_task, "Gyro Data Task", 128, NULL, 1, NULL);
-
-  // Spawn task for speed control output
-  xTaskCreate(get_encoder_speed, "Speed control task", 128, NULL, 1, NULL);
 }
 
 void gyro_data_task(void *pvParameters) {
@@ -46,6 +43,8 @@ void gyro_data_task(void *pvParameters) {
   
   // Weight
   float weight_factor = 0.05;
+  float integral = 0;
+  float prevError = 0;
   
   while (true) {
     // Rotational velocity around X axis, divide by 131 to account for FS_SEL = 0 to convert from rotational units to degrees/sec
@@ -61,28 +60,27 @@ void gyro_data_task(void *pvParameters) {
     // To determine the actual final angle, use simplified complimentary filter
     angleAroundXAxis = (1 - weight_factor) * (angleAroundXAxis + rotationalVelocityAroundXAxis * (gyro_data_task_dt_milliseconds / 1000)) + (weight_factor * angleOfGravityFromZAxis);
 
-    if (xSemaphoreTake(encoder_mutex, portMAX_DELAY) == pdTRUE) {
-      Serial.println("encoder_speed_left: " + String(encoder_speed_left) + " encoder_speed_right: " + String(encoder_speed_right));
-      xSemaphoreGive(encoder_mutex);
+    float error = 0 - angleAroundXAxis;
+    integral += error * gyro_data_task_dt_milliseconds;
+    float der = (error - prevError) / gyro_data_task_dt_milliseconds;
+    prevError = error;
+    integral = constrain(integral, -5000, 5000);
+
+    float P = 25.0 * error;
+    float I = .1 * integral;
+    float D = 3 * der;
+
+    Serial.println("P: " + String(P) + " I: " + String(I) + " D: " + String(D));
+
+    float motor_output = constrain(P + I + D, -255, 255);
+
+    if (motor_output < 0) {
+      motor.Forward(-motor_output);
+    } else {
+      motor.Back(motor_output);
     }
 
     vTaskDelay(gyro_data_task_dt_milliseconds / portTICK_PERIOD_MS);
-  }
-}
-
-void get_encoder_speed(void *pvParameters) {
-  (void) pvParameters;
-
-  while (true) {
-    if (xSemaphoreTake(encoder_mutex, portMAX_DELAY) == pdTRUE) {
-      encoder_speed_left += (car_set_speed < 0) ? (-Motor::encoder_count_left_a) : (Motor::encoder_count_left_a);
-      encoder_speed_right += (car_set_speed < 0) ? (-Motor::encoder_count_right_a) : (Motor::encoder_count_right_a);
-      Motor::encoder_count_left_a = 0;
-      Motor::encoder_count_right_a = 0;
-
-      xSemaphoreGive(encoder_mutex);
-    }
-    vTaskDelay(get_encoder_speed_task_dt_milliseconds / portTICK_PERIOD_MS);
   }
 }
 
