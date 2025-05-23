@@ -31,8 +31,8 @@ void task_balance_control_output(void* pvParameters) {
 
         if (xSemaphoreTake(balance_control_output_value_mutex, portMAX_DELAY) == pdTRUE) {
             // To determine the actual final angle, use simplified complimentary filter
-            angleAroundXAxis = (1 - weight_factor) * (angleAroundXAxis + rotationalVelocityAroundXAxis * (task_balance_control_output_dt_milliseconds / 1000)) + (weight_factor * angleOfGravityFromZAxis);
-            // Serial.println("angleAroundXAxis" + String(angleAroundXAxis));
+            angle_around_x_axis = (1 - weight_factor) * (angle_around_x_axis + rotationalVelocityAroundXAxis * (task_balance_control_output_dt_milliseconds / 1000)) + (weight_factor * angleOfGravityFromZAxis);
+            // BTSerial.println("angle_around_x_axis" + String(angle_around_x_axis));
             xSemaphoreGive(balance_control_output_value_mutex);
         }
 

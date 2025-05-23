@@ -8,5 +8,5 @@
 extern MPU6050 mpu;
 extern motor_helper motor;
 
-extern volatile float angleAroundXAxis;
+extern volatile float angle_around_x_axis;
 extern SemaphoreHandle_t balance_control_output_value_mutex;
